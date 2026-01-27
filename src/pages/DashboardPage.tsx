@@ -1,21 +1,72 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useRef, useState } from 'react';
 import { 
   BarChart3, 
   TrendingUp, 
   ArrowLeft,
   Download,
   Lightbulb,
-  BookOpen
+  BookOpen,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useData } from '@/context/DataContext';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { ChartCard } from '@/components/dashboard/ChartCard';
 import { DataPreviewTable } from '@/components/dashboard/DataPreviewTable';
+import { toast } from '@/hooks/use-toast';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 export default function DashboardPage() {
   const { dataset, statistics, charts, analysisConfig } = useData();
+  const dashboardRef = useRef<HTMLDivElement>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPDF = async () => {
+    if (!dashboardRef.current) return;
+    
+    setIsExporting(true);
+    toast({
+      title: "Generating PDF",
+      description: "Please wait while we prepare your dashboard export...",
+    });
+
+    try {
+      const element = dashboardRef.current;
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#0f172a',
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'px',
+        format: [canvas.width, canvas.height],
+      });
+
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+      pdf.save(`${dataset?.name || 'dashboard'}-report.pdf`);
+
+      toast({
+        title: "Export Complete",
+        description: "Your dashboard has been exported as PDF.",
+      });
+    } catch (error) {
+      console.error('PDF export failed:', error);
+      toast({
+        title: "Export Failed",
+        description: "There was an error exporting your dashboard.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   if (!dataset || !analysisConfig) {
     return (
@@ -64,15 +115,24 @@ export default function DashboardPage() {
                 Data Story
               </Button>
             </Link>
-            <Button size="sm" className="btn-gradient">
-              <Download className="mr-2 w-4 h-4" />
-              Export
+            <Button 
+              size="sm" 
+              className="btn-gradient" 
+              onClick={handleExportPDF}
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 w-4 h-4" />
+              )}
+              {isExporting ? 'Exporting...' : 'Export PDF'}
             </Button>
           </div>
         </div>
       </nav>
       
-      <div className="relative z-10 container mx-auto px-6 py-8">
+      <div ref={dashboardRef} className="relative z-10 container mx-auto px-6 py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
