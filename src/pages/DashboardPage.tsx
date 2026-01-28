@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -8,12 +8,14 @@ import {
   Download,
   Lightbulb,
   BookOpen,
-  Loader2
+  Loader2,
+  Settings2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useData } from '@/context/DataContext';
 import { KPICard } from '@/components/dashboard/KPICard';
-import { ChartCard } from '@/components/dashboard/ChartCard';
+import { ChartWithExplanation } from '@/components/dashboard/ChartWithExplanation';
+import { ChartSelector } from '@/components/dashboard/ChartSelector';
 import { DataPreviewTable } from '@/components/dashboard/DataPreviewTable';
 import { toast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
@@ -23,6 +25,15 @@ export default function DashboardPage() {
   const { dataset, statistics, charts, analysisConfig } = useData();
   const dashboardRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [selectedCharts, setSelectedCharts] = useState<number[]>([]);
+  const [showChartSelector, setShowChartSelector] = useState(false);
+  
+  // Initialize selected charts when charts load
+  useEffect(() => {
+    if (charts.length > 0 && selectedCharts.length === 0) {
+      setSelectedCharts(charts.map((_, i) => i));
+    }
+  }, [charts]);
 
   const handleExportPDF = async () => {
     if (!dashboardRef.current) return;
@@ -102,17 +113,25 @@ export default function DashboardPage() {
             <span className="text-xl font-bold">DataViz AI</span>
           </Link>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4 flex-wrap">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowChartSelector(!showChartSelector)}
+            >
+              <Settings2 className="mr-2 w-4 h-4" />
+              {showChartSelector ? 'Hide' : 'Charts'}
+            </Button>
             <Link to="/insights">
               <Button variant="outline" size="sm">
                 <Lightbulb className="mr-2 w-4 h-4" />
-                View Insights
+                Insights
               </Button>
             </Link>
             <Link to="/storytelling">
               <Button variant="outline" size="sm">
                 <BookOpen className="mr-2 w-4 h-4" />
-                Data Story
+                Story
               </Button>
             </Link>
             <Button 
@@ -176,19 +195,41 @@ export default function DashboardPage() {
             ))}
           </div>
           
-          {/* Charts Grid */}
+          {/* Chart Selector */}
+          {showChartSelector && (
+            <ChartSelector
+              charts={charts}
+              selectedCharts={selectedCharts}
+              onSelectionChange={setSelectedCharts}
+            />
+          )}
+          
+          {/* Charts Grid with Explanations */}
           <div className="grid md:grid-cols-2 gap-6 mb-8">
-            {charts.slice(0, 4).map((chart, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-              >
-                <ChartCard chart={chart} />
-              </motion.div>
-            ))}
+            {charts
+              .filter((_, i) => selectedCharts.includes(i))
+              .map((chart, i) => (
+                <ChartWithExplanation 
+                  key={i}
+                  chart={chart} 
+                  stats={statistics}
+                  index={i}
+                />
+              ))}
           </div>
+          
+          {selectedCharts.length === 0 && (
+            <div className="glass-card p-12 text-center mb-8">
+              <Settings2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No Charts Selected</h3>
+              <p className="text-muted-foreground mb-4">
+                Click the "Charts" button above to select which visualizations to display.
+              </p>
+              <Button variant="outline" onClick={() => setShowChartSelector(true)}>
+                Select Charts
+              </Button>
+            </div>
+          )}
           
           {/* Data Preview */}
           <div className="glass-card p-6">
