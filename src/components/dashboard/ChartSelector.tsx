@@ -22,6 +22,7 @@ const getChartIcon = (type: ChartConfig['type']) => {
     case 'line': return LineChart;
     case 'pie': return PieChart;
     case 'scatter': return ScatterChart;
+    case 'correlation': return ScatterChart;
     case 'area': return AreaChart;
     case 'histogram': return Activity;
     default: return BarChart3;

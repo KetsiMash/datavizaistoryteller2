@@ -1,4 +1,11 @@
 import { DataSet, StatSummary, Insight, ChartConfig, AnalysisType } from '@/types/analytics';
+import { 
+  calculateSkewness, 
+  interpretSkewness, 
+  calculateKurtosis,
+  generateCorrelationChartData,
+  generateCorrelationMatrix
+} from './correlationAnalysis';
 
 export function calculateStatistics(dataset: DataSet, columns: string[]): StatSummary[] {
   return columns.map(columnName => {
@@ -25,6 +32,11 @@ export function calculateStatistics(dataset: DataSet, columns: string[]): StatSu
       numValues.forEach(v => { freq[v] = (freq[v] || 0) + 1; });
       const mode = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]?.[0];
       
+      // Skewness and Kurtosis
+      const skewness = calculateSkewness(numValues);
+      const { type: skewnessType } = interpretSkewness(skewness);
+      const kurtosis = calculateKurtosis(numValues);
+      
       return {
         column: columnName,
         mean: Number(mean.toFixed(2)),
@@ -34,6 +46,9 @@ export function calculateStatistics(dataset: DataSet, columns: string[]): StatSu
         max: Number(max.toFixed(2)),
         std: Number(std.toFixed(2)),
         variance: Number(variance.toFixed(2)),
+        skewness: Number(skewness.toFixed(3)),
+        skewnessType,
+        kurtosis: Number(kurtosis.toFixed(3)),
         count: numValues.length,
         nullCount: values.length - nonNullValues.length,
         uniqueCount: new Set(numValues).size,
@@ -140,6 +155,33 @@ export function generateCharts(dataset: DataSet, columns: string[], analysisType
     dataset.columns.find(c => c.name === col)?.type === 'string'
   );
   
+  // Generate correlation charts with regression lines for correlation/regression analysis
+  if (numericCols.length >= 2 && (analysisType === 'correlation' || analysisType === 'regression')) {
+    // Get all pairwise correlations
+    const correlations = generateCorrelationMatrix(dataset, numericCols);
+    
+    // Create correlation charts for top pairs (max 4)
+    const topPairs = correlations.slice(0, Math.min(4, correlations.length));
+    
+    topPairs.forEach(corr => {
+      const chartData = generateCorrelationChartData(dataset, corr.xColumn, corr.yColumn);
+      
+      charts.push({
+        type: 'correlation',
+        title: `${corr.xColumn} vs ${corr.yColumn}`,
+        xAxis: corr.xColumn,
+        yAxis: corr.yColumn,
+        data: chartData.data,
+        regression: chartData.regression,
+        correlation: {
+          value: chartData.correlation.correlation,
+          strength: chartData.correlation.strength,
+          interpretation: chartData.correlation.interpretation
+        }
+      });
+    });
+  }
+  
   // Bar chart for categorical data
   if (categoricalCols.length > 0) {
     const col = categoricalCols[0];
@@ -197,25 +239,6 @@ export function generateCharts(dataset: DataSet, columns: string[], analysisType
     charts.push({
       type: 'pie',
       title: `${col} Breakdown`,
-      data,
-    });
-  }
-  
-  // Scatter plot for correlation
-  if (numericCols.length >= 2 && (analysisType === 'correlation' || analysisType === 'regression')) {
-    const xCol = numericCols[0];
-    const yCol = numericCols[1];
-    
-    const data = dataset.rows.slice(0, 100).map(row => ({
-      x: Number(row[xCol]) || 0,
-      y: Number(row[yCol]) || 0,
-    }));
-    
-    charts.push({
-      type: 'scatter',
-      title: `${xCol} vs ${yCol}`,
-      xAxis: xCol,
-      yAxis: yCol,
       data,
     });
   }

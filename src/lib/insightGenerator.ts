@@ -183,12 +183,51 @@ export function generateChartExplanation(chart: ChartConfig, stats: StatSummary[
     case 'scatter':
       return `This scatter plot explores the relationship between ${chart.xAxis} and ${chart.yAxis}. Each point represents a data record. Clusters indicate common patterns, while outliers may reveal anomalies or special cases worth investigating. Look for linear patterns suggesting correlation.`;
     
+    case 'correlation':
+      const r = chart.correlation?.value ?? 0;
+      const strength = chart.correlation?.strength ?? 'none';
+      const rSquared = chart.regression?.rSquared ?? 0;
+      const equation = chart.regression?.equation ?? '';
+      
+      let corrExplanation = `This correlation chart analyzes the relationship between ${chart.xAxis} and ${chart.yAxis}. `;
+      
+      if (strength === 'strong') {
+        corrExplanation += `There is a **strong ${r >= 0 ? 'positive' : 'negative'} correlation** (r = ${r.toFixed(3)}), meaning these variables ${r >= 0 ? 'increase together' : 'move inversely'}. `;
+        corrExplanation += `The regression line (${equation}) explains ${(rSquared * 100).toFixed(1)}% of the variance. `;
+        corrExplanation += `This relationship is statistically significant and can be used for prediction.`;
+      } else if (strength === 'moderate') {
+        corrExplanation += `There is a **moderate ${r >= 0 ? 'positive' : 'negative'} correlation** (r = ${r.toFixed(3)}). `;
+        corrExplanation += `While a relationship exists, other factors may also influence ${chart.yAxis}. `;
+        corrExplanation += `R² of ${(rSquared * 100).toFixed(1)}% suggests additional variables should be considered.`;
+      } else if (strength === 'weak') {
+        corrExplanation += `There is a **weak ${r >= 0 ? 'positive' : 'negative'} correlation** (r = ${r.toFixed(3)}). `;
+        corrExplanation += `The relationship is limited; ${chart.xAxis} alone does not strongly predict ${chart.yAxis}. `;
+        corrExplanation += `Consider exploring other variables or non-linear relationships.`;
+      } else {
+        corrExplanation += `**No significant linear correlation** was found (r = ${r.toFixed(3)}). `;
+        corrExplanation += `These variables appear to be independent of each other. Consider non-linear analysis or other variable combinations.`;
+      }
+      
+      return corrExplanation;
+    
     case 'histogram':
       const histMax = Math.max(...chart.data.map((d: any) => d.value || 0));
       const peakBin = chart.data.find((d: any) => d.value === histMax);
-      return `This histogram shows the frequency distribution of ${chart.xAxis || 'values'}. ${
-        peakBin ? `The peak concentration is around ${peakBin.name}, where most values cluster.` : ''
-      } The shape reveals whether data is normally distributed, skewed, or has multiple modes.`;
+      const xStat = stats.find(s => s.column === chart.xAxis);
+      let histExplanation = `This histogram shows the frequency distribution of ${chart.xAxis || 'values'}. `;
+      histExplanation += peakBin ? `The peak concentration is around ${peakBin.name}, where most values cluster. ` : '';
+      
+      if (xStat?.skewnessType) {
+        if (xStat.skewnessType === 'symmetric') {
+          histExplanation += `The distribution is approximately symmetric (skewness: ${xStat.skewness}), resembling a normal distribution. This is ideal for parametric statistical tests.`;
+        } else if (xStat.skewnessType === 'right-skewed') {
+          histExplanation += `The distribution is right-skewed (skewness: ${xStat.skewness}), with a tail extending toward higher values. Consider log transformation for analysis or focus on median rather than mean.`;
+        } else {
+          histExplanation += `The distribution is left-skewed (skewness: ${xStat.skewness}), with a tail extending toward lower values. This may indicate ceiling effects or natural bounds in the data.`;
+        }
+      }
+      
+      return histExplanation;
     
     default:
       return `This visualization provides insights into your data patterns. Analyze the visual patterns to identify trends, outliers, and relationships that can inform your decision-making.`;
