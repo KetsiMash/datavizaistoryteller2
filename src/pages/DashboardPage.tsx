@@ -195,6 +195,68 @@ export default function DashboardPage() {
             ))}
           </div>
           
+          {/* Skewness & Distribution Info */}
+          {numericStats.length > 0 && (
+            <div className="glass-card p-6 mb-8">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-primary" />
+                Distribution Analysis (Skewness)
+              </h2>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {numericStats.map(stat => (
+                  <div 
+                    key={stat.column}
+                    className={`p-4 rounded-lg border ${
+                      stat.skewnessType === 'symmetric' 
+                        ? 'bg-green-400/5 border-green-400/30' 
+                        : stat.skewnessType === 'right-skewed'
+                        ? 'bg-yellow-400/5 border-yellow-400/30'
+                        : 'bg-orange-400/5 border-orange-400/30'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-sm truncate">{stat.column}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        stat.skewnessType === 'symmetric' 
+                          ? 'bg-green-400/20 text-green-400' 
+                          : stat.skewnessType === 'right-skewed'
+                          ? 'bg-yellow-400/20 text-yellow-400'
+                          : 'bg-orange-400/20 text-orange-400'
+                      }`}>
+                        {stat.skewnessType?.replace('-', ' ') || 'N/A'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-muted-foreground">Skewness:</span>
+                        <span className="ml-1 font-mono">{stat.skewness ?? 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Kurtosis:</span>
+                        <span className="ml-1 font-mono">{stat.kurtosis ?? 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Std Dev:</span>
+                        <span className="ml-1 font-mono">{stat.std ?? 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Variance:</span>
+                        <span className="ml-1 font-mono">{stat.variance ?? 'N/A'}</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {stat.skewnessType === 'symmetric' 
+                        ? 'Normal-like distribution, suitable for parametric tests.' 
+                        : stat.skewnessType === 'right-skewed'
+                        ? 'Tail extends right (more extreme high values). Consider log transform.'
+                        : 'Tail extends left (more extreme low values). Review for floor effects.'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
           {/* Chart Selector */}
           {showChartSelector && (
             <ChartSelector

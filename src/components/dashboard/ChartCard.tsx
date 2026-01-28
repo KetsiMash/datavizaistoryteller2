@@ -15,9 +15,12 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  Legend
+  Legend,
+  ReferenceLine,
+  ComposedChart
 } from 'recharts';
 import { ChartConfig } from '@/types/analytics';
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 const COLORS = [
   'hsl(175, 84%, 45%)',
@@ -27,6 +30,24 @@ const COLORS = [
   'hsl(199, 89%, 48%)',
   'hsl(142, 71%, 45%)',
 ];
+
+const getStrengthColor = (strength: string) => {
+  switch (strength) {
+    case 'strong': return 'text-green-400';
+    case 'moderate': return 'text-yellow-400';
+    case 'weak': return 'text-orange-400';
+    default: return 'text-muted-foreground';
+  }
+};
+
+const getStrengthBg = (strength: string) => {
+  switch (strength) {
+    case 'strong': return 'bg-green-400/10 border-green-400/30';
+    case 'moderate': return 'bg-yellow-400/10 border-yellow-400/30';
+    case 'weak': return 'bg-orange-400/10 border-orange-400/30';
+    default: return 'bg-muted/10 border-muted/30';
+  }
+};
 
 interface ChartCardProps {
   chart: ChartConfig;
@@ -198,6 +219,104 @@ export function ChartCard({ chart }: ChartCardProps) {
               <Scatter data={chart.data} fill={COLORS[0]} />
             </ScatterChart>
           </ResponsiveContainer>
+        );
+      
+      case 'correlation':
+        // Correlation chart with regression line
+        const sortedData = [...chart.data].sort((a, b) => a.x - b.x);
+        const correlationValue = chart.correlation?.value ?? 0;
+        const isPositive = correlationValue >= 0;
+        
+        return (
+          <div>
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={sortedData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 20%)" />
+                <XAxis 
+                  type="number"
+                  dataKey="x" 
+                  stroke="hsl(215, 20%, 55%)" 
+                  fontSize={12}
+                  tickLine={false}
+                  name={chart.xAxis}
+                  domain={['dataMin', 'dataMax']}
+                />
+                <YAxis 
+                  type="number"
+                  dataKey="y"
+                  stroke="hsl(215, 20%, 55%)" 
+                  fontSize={12}
+                  tickLine={false}
+                  name={chart.yAxis}
+                  domain={['dataMin', 'dataMax']}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(222, 47%, 12%)', 
+                    border: '1px solid hsl(217, 33%, 20%)',
+                    borderRadius: '8px'
+                  }}
+                  formatter={(value: number, name: string) => {
+                    if (name === 'y') return [value.toFixed(2), chart.yAxis || 'Y'];
+                    if (name === 'regressionY') return [value.toFixed(2), 'Regression'];
+                    return [value.toFixed(2), chart.xAxis || 'X'];
+                  }}
+                />
+                <Legend />
+                <Scatter 
+                  name={`${chart.xAxis} vs ${chart.yAxis}`}
+                  dataKey="y" 
+                  fill={COLORS[0]} 
+                  opacity={0.7}
+                />
+                <Line 
+                  name="Regression Line"
+                  type="linear"
+                  dataKey="regressionY" 
+                  stroke={COLORS[1]} 
+                  strokeWidth={2}
+                  dot={false}
+                  strokeDasharray="5 5"
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+            
+            {/* Correlation Info Panel */}
+            {chart.correlation && (
+              <div className={`mt-4 p-3 rounded-lg border ${getStrengthBg(chart.correlation.strength)}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    {isPositive ? (
+                      <TrendingUp className={`w-4 h-4 ${getStrengthColor(chart.correlation.strength)}`} />
+                    ) : correlationValue < -0.1 ? (
+                      <TrendingDown className={`w-4 h-4 ${getStrengthColor(chart.correlation.strength)}`} />
+                    ) : (
+                      <Minus className="w-4 h-4 text-muted-foreground" />
+                    )}
+                    <span className={`font-semibold ${getStrengthColor(chart.correlation.strength)}`}>
+                      r = {chart.correlation.value.toFixed(3)}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full border ${getStrengthBg(chart.correlation.strength)} ${getStrengthColor(chart.correlation.strength)}`}>
+                      {chart.correlation.strength}
+                    </span>
+                  </div>
+                  {chart.regression && (
+                    <span className="text-xs text-muted-foreground font-mono">
+                      R² = {chart.regression.rSquared.toFixed(3)}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {chart.correlation.interpretation}
+                </p>
+                {chart.regression && (
+                  <p className="text-xs text-muted-foreground mt-1 font-mono">
+                    {chart.regression.equation}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         );
         
       case 'histogram':

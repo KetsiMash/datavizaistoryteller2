@@ -37,6 +37,9 @@ export interface StatSummary {
   max?: number;
   std?: number;
   variance?: number;
+  skewness?: number;
+  skewnessType?: 'symmetric' | 'right-skewed' | 'left-skewed';
+  kurtosis?: number;
   count: number;
   nullCount: number;
   uniqueCount: number;
@@ -52,9 +55,20 @@ export interface Insight {
 }
 
 export interface ChartConfig {
-  type: 'bar' | 'line' | 'pie' | 'scatter' | 'histogram' | 'boxplot' | 'area';
+  type: 'bar' | 'line' | 'pie' | 'scatter' | 'histogram' | 'boxplot' | 'area' | 'correlation';
   title: string;
   xAxis?: string;
   yAxis?: string;
   data: any[];
+  regression?: {
+    slope: number;
+    intercept: number;
+    rSquared: number;
+    equation: string;
+  };
+  correlation?: {
+    value: number;
+    strength: 'strong' | 'moderate' | 'weak' | 'none';
+    interpretation: string;
+  };
 }
