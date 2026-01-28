@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useMemo } from 'react';
 import { 
   BarChart3, 
   ArrowLeft,
@@ -7,11 +8,15 @@ import {
   TrendingUp,
   Lightbulb,
   CheckCircle,
-  Info
+  Info,
+  ArrowRight,
+  Zap,
+  Target
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useData } from '@/context/DataContext';
 import { Insight } from '@/types/analytics';
+import { generateActionableInsights, generateMarketTrendInsights } from '@/lib/insightGenerator';
 
 const getInsightIcon = (type: Insight['type']) => {
   switch (type) {
@@ -33,9 +38,22 @@ const getSeverityStyles = (severity: Insight['severity']) => {
 };
 
 export default function InsightsPage() {
-  const { dataset, insights, statistics } = useData();
+  const { dataset, statistics } = useData();
 
-  if (!dataset || insights.length === 0) {
+  // Generate enhanced actionable insights
+  const actionableInsights = useMemo(() => {
+    if (!dataset || statistics.length === 0) return [];
+    return generateActionableInsights(dataset, statistics);
+  }, [dataset, statistics]);
+
+  const trendInsights = useMemo(() => {
+    if (!dataset || statistics.length === 0) return [];
+    return generateMarketTrendInsights(dataset, statistics);
+  }, [dataset, statistics]);
+
+  const allInsights = [...actionableInsights, ...trendInsights];
+
+  if (!dataset || allInsights.length === 0) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -52,9 +70,9 @@ export default function InsightsPage() {
     );
   }
 
-  const warningInsights = insights.filter(i => i.severity === 'warning');
-  const infoInsights = insights.filter(i => i.severity === 'info');
-  const successInsights = insights.filter(i => i.severity === 'success');
+  const warningInsights = allInsights.filter(i => i.severity === 'warning');
+  const infoInsights = allInsights.filter(i => i.severity === 'info');
+  const successInsights = allInsights.filter(i => i.severity === 'success');
 
   return (
     <div className="min-h-screen bg-background bg-grid relative">
@@ -89,10 +107,10 @@ export default function InsightsPage() {
               <Lightbulb className="w-8 h-8 text-primary" />
             </div>
             <h1 className="text-4xl md:text-5xl font-bold mb-4">
-              AI-Powered <span className="gradient-text">Insights</span>
+              Actionable <span className="gradient-text">Insights</span>
             </h1>
-            <p className="text-muted-foreground text-lg">
-              Key discoveries and recommendations from your data analysis.
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+              Data-driven conclusions explaining <strong>what happened</strong>, <strong>why it matters</strong>, and <strong>what action to take</strong>.
             </p>
           </div>
           
@@ -100,41 +118,44 @@ export default function InsightsPage() {
           <div className="grid grid-cols-3 gap-4 mb-12">
             <div className="glass-card p-4 text-center">
               <p className="text-3xl font-bold text-chart-3">{warningInsights.length}</p>
-              <p className="text-sm text-muted-foreground">Warnings</p>
+              <p className="text-sm text-muted-foreground">Needs Attention</p>
             </div>
             <div className="glass-card p-4 text-center">
               <p className="text-3xl font-bold text-chart-5">{infoInsights.length}</p>
-              <p className="text-sm text-muted-foreground">Observations</p>
+              <p className="text-sm text-muted-foreground">Opportunities</p>
             </div>
             <div className="glass-card p-4 text-center">
               <p className="text-3xl font-bold text-chart-6">{successInsights.length}</p>
-              <p className="text-sm text-muted-foreground">Positive</p>
+              <p className="text-sm text-muted-foreground">Strengths</p>
             </div>
           </div>
           
           {/* Insights List */}
-          <div className="space-y-4">
-            {insights.map((insight, i) => {
+          <div className="space-y-6">
+            {allInsights.map((insight, i) => {
               const Icon = getInsightIcon(insight.type);
+              const hasAction = 'action' in insight;
+              
               return (
                 <motion.div
                   key={insight.id}
                   className={`glass-card p-6 border-l-4 ${getSeverityStyles(insight.severity)}`}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.1 }}
+                  transition={{ delay: i * 0.08 }}
                 >
                   <div className="flex items-start gap-4">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center shrink-0 ${
                       insight.severity === 'warning' ? 'bg-chart-3/20 text-chart-3' :
                       insight.severity === 'success' ? 'bg-chart-6/20 text-chart-6' :
                       'bg-chart-5/20 text-chart-5'
                     }`}>
-                      <Icon className="w-5 h-5" />
+                      <Icon className="w-6 h-6" />
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold">{insight.title}</h3>
+                    <div className="flex-1 space-y-3">
+                      {/* Header */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold text-lg">{insight.title}</h3>
                         <span className={`text-xs px-2 py-0.5 rounded-full ${
                           insight.severity === 'warning' ? 'bg-chart-3/20 text-chart-3' :
                           insight.severity === 'success' ? 'bg-chart-6/20 text-chart-6' :
@@ -143,10 +164,49 @@ export default function InsightsPage() {
                           {insight.type}
                         </span>
                       </div>
+                      
+                      {/* Description */}
                       <p className="text-muted-foreground">{insight.description}</p>
+                      
+                      {/* Why It Matters */}
+                      {hasAction && (insight as any).whyItMatters && (
+                        <div className="bg-muted/50 rounded-lg p-3 border-l-2 border-primary/50">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Target className="w-4 h-4 text-primary" />
+                            <span className="text-sm font-medium">Why It Matters</span>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {(insight as any).whyItMatters}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Action to Take */}
+                      {hasAction && (insight as any).action && (
+                        <div className="bg-primary/5 rounded-lg p-3 border border-primary/20">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Zap className="w-4 h-4 text-primary" />
+                            <span className="text-sm font-medium text-primary">Recommended Action</span>
+                          </div>
+                          <p className="text-sm">
+                            {(insight as any).action}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Impact */}
+                      {hasAction && (insight as any).impact && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <ArrowRight className="w-4 h-4 text-chart-6" />
+                          <span className="text-chart-6 font-medium">Potential Impact:</span>
+                          <span className="text-muted-foreground">{(insight as any).impact}</span>
+                        </div>
+                      )}
+                      
+                      {/* Related Columns */}
                       {insight.relatedColumns && insight.relatedColumns.length > 0 && (
-                        <div className="flex items-center gap-2 mt-3">
-                          <span className="text-xs text-muted-foreground">Related:</span>
+                        <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                          <span className="text-xs text-muted-foreground">Related fields:</span>
                           {insight.relatedColumns.map(col => (
                             <span key={col} className="text-xs font-mono px-2 py-1 bg-secondary rounded">
                               {col}
