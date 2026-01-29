@@ -1,0 +1,4 @@
+project_id = "nqlfsfrvfeiioozslpat"
+
+[functions.generate-predictions]
+verify_jwt = false

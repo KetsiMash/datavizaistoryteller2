@@ -5,12 +5,12 @@ import {
   BarChart3, 
   TrendingUp, 
   ArrowLeft,
-  Download,
   Lightbulb,
   BookOpen,
   Loader2,
   Settings2,
-  FileText
+  FileText,
+  Brain
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useData } from '@/context/DataContext';
@@ -18,9 +18,34 @@ import { KPICard } from '@/components/dashboard/KPICard';
 import { ChartWithExplanation } from '@/components/dashboard/ChartWithExplanation';
 import { ChartSelector } from '@/components/dashboard/ChartSelector';
 import { DataPreviewTable } from '@/components/dashboard/DataPreviewTable';
+import { PredictionsPanel } from '@/components/dashboard/PredictionsPanel';
 import { toast } from '@/hooks/use-toast';
 import { generateComprehensivePDFReport } from '@/lib/pdfReportGenerator';
 import { generateActionableInsights, generateMarketTrendInsights } from '@/lib/insightGenerator';
+import { supabase } from '@/integrations/supabase/client';
+
+interface PredictionData {
+  predictions: Array<{
+    title: string;
+    prediction: string;
+    confidence: 'high' | 'medium' | 'low';
+    timeframe: 'short-term' | 'medium-term' | 'long-term';
+    basedOn: string;
+  }>;
+  recommendations: Array<{
+    title: string;
+    description: string;
+    priority: 'critical' | 'high' | 'medium' | 'low';
+    expectedImpact: string;
+    implementation: string;
+  }>;
+  riskFactors: Array<{
+    risk: string;
+    mitigation: string;
+  }>;
+  opportunityScore: number;
+  overallOutlook: string;
+}
 
 export default function DashboardPage() {
   const { dataset, statistics, charts, analysisConfig } = useData();
@@ -29,6 +54,10 @@ export default function DashboardPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [selectedCharts, setSelectedCharts] = useState<number[]>([]);
   const [showChartSelector, setShowChartSelector] = useState(false);
+  const [showPredictions, setShowPredictions] = useState(false);
+  const [predictionData, setPredictionData] = useState<PredictionData | null>(null);
+  const [isPredicting, setIsPredicting] = useState(false);
+  const [predictionError, setPredictionError] = useState<string | null>(null);
   
   // Initialize selected charts when charts load
   useEffect(() => {
@@ -36,6 +65,70 @@ export default function DashboardPage() {
       setSelectedCharts(charts.map((_, i) => i));
     }
   }, [charts]);
+
+  const handleGeneratePredictions = async () => {
+    if (!dataset || !analysisConfig) return;
+    
+    setIsPredicting(true);
+    setPredictionError(null);
+    setShowPredictions(true);
+    
+    try {
+      // Prepare data summary for AI
+      const dataSummary = {
+        datasetName: dataset.name,
+        rowCount: dataset.rowCount,
+        columns: statistics.map(stat => ({
+          name: stat.column,
+          type: stat.mean !== undefined ? 'number' : 'string',
+          mean: stat.mean,
+          min: stat.min,
+          max: stat.max,
+          std: stat.std,
+          skewnessType: stat.skewnessType,
+          uniqueCount: stat.uniqueCount,
+        })),
+        correlations: charts
+          .filter(c => c.type === 'correlation' && c.correlation)
+          .map(c => ({
+            xColumn: c.xAxis || '',
+            yColumn: c.yAxis || '',
+            strength: c.correlation?.strength || 'none',
+            value: c.correlation?.value || 0,
+          })),
+        analysisType: analysisConfig.type,
+      };
+
+      const { data, error } = await supabase.functions.invoke('generate-predictions', {
+        body: { dataSummary },
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Failed to generate predictions');
+      }
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      setPredictionData(data);
+      toast({
+        title: "Predictions Generated",
+        description: "AI has analyzed your data and generated insights.",
+      });
+    } catch (error) {
+      console.error('Prediction error:', error);
+      const message = error instanceof Error ? error.message : 'Failed to generate predictions';
+      setPredictionError(message);
+      toast({
+        title: "Prediction Failed",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsPredicting(false);
+    }
+  };
 
   const handleExportFullReport = async () => {
     if (!dataset || !analysisConfig) return;
@@ -119,6 +212,19 @@ export default function DashboardPage() {
             >
               <Settings2 className="mr-2 w-4 h-4" />
               {showChartSelector ? 'Hide' : 'Charts'}
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                setShowPredictions(!showPredictions);
+                if (!predictionData && !isPredicting) {
+                  handleGeneratePredictions();
+                }
+              }}
+            >
+              <Brain className="mr-2 w-4 h-4" />
+              {showPredictions ? 'Hide Predictions' : 'AI Predictions'}
             </Button>
             <Link to="/insights">
               <Button variant="outline" size="sm">
@@ -279,7 +385,7 @@ export default function DashboardPage() {
               ))}
           </div>
           
-          {selectedCharts.length === 0 && (
+          {selectedCharts.length === 0 && !showPredictions && (
             <div className="glass-card p-12 text-center mb-8">
               <Settings2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">No Charts Selected</h3>
@@ -289,6 +395,22 @@ export default function DashboardPage() {
               <Button variant="outline" onClick={() => setShowChartSelector(true)}>
                 Select Charts
               </Button>
+            </div>
+          )}
+          
+          {/* AI Predictions Panel */}
+          {showPredictions && (
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+                <Brain className="w-6 h-6 text-primary" />
+                <span className="gradient-text">AI Predictions & Recommendations</span>
+              </h2>
+              <PredictionsPanel
+                data={predictionData}
+                isLoading={isPredicting}
+                onGenerate={handleGeneratePredictions}
+                error={predictionError}
+              />
             </div>
           )}
           
