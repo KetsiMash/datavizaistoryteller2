@@ -9,7 +9,8 @@ import {
   Lightbulb,
   BookOpen,
   Loader2,
-  Settings2
+  Settings2,
+  FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useData } from '@/context/DataContext';
@@ -18,12 +19,13 @@ import { ChartWithExplanation } from '@/components/dashboard/ChartWithExplanatio
 import { ChartSelector } from '@/components/dashboard/ChartSelector';
 import { DataPreviewTable } from '@/components/dashboard/DataPreviewTable';
 import { toast } from '@/hooks/use-toast';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import { generateComprehensivePDFReport } from '@/lib/pdfReportGenerator';
+import { generateActionableInsights, generateMarketTrendInsights } from '@/lib/insightGenerator';
 
 export default function DashboardPage() {
   const { dataset, statistics, charts, analysisConfig } = useData();
   const dashboardRef = useRef<HTMLDivElement>(null);
+  const chartsContainerRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [selectedCharts, setSelectedCharts] = useState<number[]>([]);
   const [showChartSelector, setShowChartSelector] = useState(false);
@@ -35,43 +37,39 @@ export default function DashboardPage() {
     }
   }, [charts]);
 
-  const handleExportPDF = async () => {
-    if (!dashboardRef.current) return;
+  const handleExportFullReport = async () => {
+    if (!dataset || !analysisConfig) return;
     
     setIsExporting(true);
     toast({
-      title: "Generating PDF",
-      description: "Please wait while we prepare your dashboard export...",
+      title: "Generating Comprehensive Report",
+      description: "Creating full analysis with visualizations and explanations...",
     });
 
     try {
-      const element = dashboardRef.current;
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#0f172a',
-      });
+      // Generate all insights
+      const actionableInsights = generateActionableInsights(dataset, statistics);
+      const marketInsights = generateMarketTrendInsights(dataset, statistics);
+      const allInsights = [...actionableInsights, ...marketInsights];
 
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'px',
-        format: [canvas.width, canvas.height],
+      await generateComprehensivePDFReport({
+        dataset,
+        statistics,
+        charts: charts.filter((_, i) => selectedCharts.includes(i)),
+        insights: allInsights,
+        analysisConfig,
+        chartsContainerRef: chartsContainerRef.current,
       });
-
-      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-      pdf.save(`${dataset?.name || 'dashboard'}-report.pdf`);
 
       toast({
-        title: "Export Complete",
-        description: "Your dashboard has been exported as PDF.",
+        title: "Report Generated Successfully",
+        description: "Your comprehensive analysis report has been downloaded.",
       });
     } catch (error) {
-      console.error('PDF export failed:', error);
+      console.error('PDF report generation failed:', error);
       toast({
         title: "Export Failed",
-        description: "There was an error exporting your dashboard.",
+        description: "There was an error generating your report.",
         variant: "destructive",
       });
     } finally {
@@ -137,15 +135,15 @@ export default function DashboardPage() {
             <Button 
               size="sm" 
               className="btn-gradient" 
-              onClick={handleExportPDF}
+              onClick={handleExportFullReport}
               disabled={isExporting}
             >
               {isExporting ? (
                 <Loader2 className="mr-2 w-4 h-4 animate-spin" />
               ) : (
-                <Download className="mr-2 w-4 h-4" />
+                <FileText className="mr-2 w-4 h-4" />
               )}
-              {isExporting ? 'Exporting...' : 'Export PDF'}
+              {isExporting ? 'Generating...' : 'Export Full Report'}
             </Button>
           </div>
         </div>
@@ -267,16 +265,17 @@ export default function DashboardPage() {
           )}
           
           {/* Charts Grid with Explanations */}
-          <div className="grid md:grid-cols-2 gap-6 mb-8">
+          <div ref={chartsContainerRef} className="grid md:grid-cols-2 gap-6 mb-8">
             {charts
               .filter((_, i) => selectedCharts.includes(i))
               .map((chart, i) => (
-                <ChartWithExplanation 
-                  key={i}
-                  chart={chart} 
-                  stats={statistics}
-                  index={i}
-                />
+                <div key={i} data-chart-container>
+                  <ChartWithExplanation 
+                    chart={chart} 
+                    stats={statistics}
+                    index={i}
+                  />
+                </div>
               ))}
           </div>
           
