@@ -1,11 +1,10 @@
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Upload, FileSpreadsheet, FileJson, FileText, X, Check, ArrowRight, BarChart3 } from 'lucide-react';
+import { Upload, FileSpreadsheet, FileJson, FileText, X, Check, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useData } from '@/context/DataContext';
 import { parseFile } from '@/lib/dataParser';
-import { Link } from 'react-router-dom';
 
 const fileTypes = [
   { ext: 'CSV', icon: FileSpreadsheet, desc: 'Comma-separated values' },
@@ -88,18 +87,6 @@ export default function UploadPage() {
       {/* Gradient orbs */}
       <div className="absolute top-1/4 left-0 w-96 h-96 bg-primary/20 rounded-full blur-3xl opacity-30" />
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-accent/20 rounded-full blur-3xl opacity-20" />
-      
-      {/* Navigation */}
-      <nav className="relative z-10 border-b border-border/50 backdrop-blur-sm">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-              <BarChart3 className="w-6 h-6 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold">DataViz AI</span>
-          </Link>
-        </div>
-      </nav>
       
       <div className="relative z-10 container mx-auto px-6 py-12">
         <motion.div 

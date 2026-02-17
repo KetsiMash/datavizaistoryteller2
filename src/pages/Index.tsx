@@ -70,6 +70,12 @@ export default function Index() {
             <Link to="/insights" className="text-muted-foreground hover:text-foreground transition-colors">
               Insights
             </Link>
+            <Link to="/voice-demo" className="text-muted-foreground hover:text-foreground transition-colors">
+              🎵 Voice Demo
+            </Link>
+            <Link to="/voice-management" className="text-muted-foreground hover:text-foreground transition-colors">
+              ⚙️ Voice Settings
+            </Link>
           </div>
           
           <Link to="/upload">
@@ -208,7 +214,7 @@ export default function Index() {
             <span className="font-semibold">DataViz AI</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            © 2024 DataViz AI. Transform data into decisions.
+            © 2026 DataViz AI. Created by Moeketsi Mashigo, AI Engineer | 073 555 0431 | Transform data into decisions.
           </p>
         </div>
       </footer>

@@ -5,10 +5,12 @@ import {
   ArrowLeft,
   BookOpen,
   Download,
-  FileText
+  FileText,
+  Volume2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useData } from '@/context/DataContext';
+import { VoicePlayer } from '@/components/VoicePlayer';
 
 
 export default function StorytellingPage() {
@@ -94,9 +96,24 @@ export default function StorytellingPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            <div className="flex items-center gap-2 mb-6 pb-6 border-b border-border">
-              <FileText className="w-5 h-5 text-primary" />
-              <span className="font-medium">AI-Generated Report</span>
+            <div className="flex items-center justify-between mb-6 pb-6 border-b border-border">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-primary" />
+                <span className="font-medium">AI-Generated Report</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Volume2 className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Listen to your story</span>
+              </div>
+            </div>
+            
+            {/* Voice Player */}
+            <div className="mb-8">
+              <VoicePlayer 
+                text={narrative}
+                title="Data Story Narration"
+                className="mb-6"
+              />
             </div>
             
             <div className="prose prose-invert prose-lg max-w-none">

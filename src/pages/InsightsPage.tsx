@@ -11,12 +11,14 @@ import {
   Info,
   ArrowRight,
   Zap,
-  Target
+  Target,
+  Volume2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useData } from '@/context/DataContext';
 import { Insight } from '@/types/analytics';
 import { generateActionableInsights, generateMarketTrendInsights } from '@/lib/insightGenerator';
+import { VoicePlayer } from '@/components/VoicePlayer';
 
 const getInsightIcon = (type: Insight['type']) => {
   switch (type) {
@@ -53,6 +55,54 @@ export default function InsightsPage() {
 
   const allInsights = [...actionableInsights, ...trendInsights];
 
+  // Calculate insight categories
+  const warningInsights = allInsights.filter(i => i.severity === 'warning');
+  const infoInsights = allInsights.filter(i => i.severity === 'info');
+  const successInsights = allInsights.filter(i => i.severity === 'success');
+
+  // Generate narrative text for voice playback
+  const insightsNarrative = useMemo(() => {
+    if (allInsights.length === 0) return '';
+    
+    let narrative = `Data Insights Summary for ${dataset?.name || 'your dataset'}.\n\n`;
+    
+    // Add summary stats
+    narrative += `We found ${allInsights.length} key insights: ${warningInsights.length} items need attention, ${infoInsights.length} opportunities identified, and ${successInsights.length} strengths discovered.\n\n`;
+    
+    // Add insights by priority
+    const priorityOrder = ['warning', 'info', 'success'] as const;
+    
+    priorityOrder.forEach(severity => {
+      const insights = allInsights.filter(i => i.severity === severity);
+      if (insights.length === 0) return;
+      
+      const sectionTitle = severity === 'warning' ? 'Items Needing Attention' : 
+                          severity === 'info' ? 'Opportunities' : 'Strengths';
+      
+      narrative += `${sectionTitle}:\n\n`;
+      
+      insights.forEach((insight, index) => {
+        narrative += `${index + 1}. ${insight.title}. ${insight.description}`;
+        
+        if ('whyItMatters' in insight) {
+          narrative += ` This matters because ${(insight as any).whyItMatters}`;
+        }
+        
+        if ('action' in insight) {
+          narrative += ` Recommended action: ${(insight as any).action}`;
+        }
+        
+        if ('impact' in insight) {
+          narrative += ` Expected impact: ${(insight as any).impact}`;
+        }
+        
+        narrative += '\n\n';
+      });
+    });
+    
+    return narrative;
+  }, [allInsights, dataset, warningInsights.length, infoInsights.length, successInsights.length]);
+
   if (!dataset || allInsights.length === 0) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -69,10 +119,6 @@ export default function InsightsPage() {
       </div>
     );
   }
-
-  const warningInsights = allInsights.filter(i => i.severity === 'warning');
-  const infoInsights = allInsights.filter(i => i.severity === 'info');
-  const successInsights = allInsights.filter(i => i.severity === 'success');
 
   return (
     <div className="min-h-screen bg-background bg-grid relative">
@@ -112,6 +158,16 @@ export default function InsightsPage() {
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
               Data-driven conclusions explaining <strong>what happened</strong>, <strong>why it matters</strong>, and <strong>what action to take</strong>.
             </p>
+          </div>
+          
+          {/* Voice Player for Insights */}
+          <div className="mb-8">
+            <VoicePlayer 
+              text={insightsNarrative}
+              title="Listen to Key Insights"
+              variant="compact"
+              className="glass-card p-4"
+            />
           </div>
           
           {/* Summary Stats */}
