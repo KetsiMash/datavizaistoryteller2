@@ -1,5 +1,7 @@
 # DataViz AI - Intelligent Data Analytics Platform
 
+🚀 **Live Demo**: Coming soon at GitHub Pages
+
 Transform your data into actionable insights with AI-powered analytics, beautiful visualizations, and intelligent storytelling.
 
 ## 🚀 Features
