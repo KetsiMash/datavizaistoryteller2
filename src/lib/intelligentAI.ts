@@ -441,6 +441,7 @@ export class IntelligentAI {
 
     // If no specific column, provide brief overview
     return `Your dataset has ${this.dataset?.rowCount.toLocaleString()} records with ${this.statistics.length} columns. ${reasoning.insights.length > 0 ? reasoning.insights[0] : 'Ask about specific columns for detailed analysis.'}`;
+  }
 
   private generateAnalysisResponse(intent: any, reasoning: any): string {
     const numericCols = this.statistics.filter(s => s.mean !== undefined);
@@ -682,5 +683,6 @@ export class IntelligentAI {
     
     return conclusion;
   }
+}
 
 export const intelligentAI = new IntelligentAI();

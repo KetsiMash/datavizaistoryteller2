@@ -1,0 +1,54 @@
+╔══════════════════════════════════════════════════════════════╗
+║                  DATA VIZ AI - START HERE                    ║
+╚══════════════════════════════════════════════════════════════╝
+
+📦 YOU HAVE 2 OPTIONS:
+
+┌──────────────────────────────────────────────────────────────┐
+│  OPTION 1: INSTANT USE (NO INSTALLATION)                     │
+│  ⚡ FASTEST - WORKS IMMEDIATELY                              │
+└──────────────────────────────────────────────────────────────┘
+
+1. Go to folder: BUILT_VERSION_OPEN_THIS
+2. Double-click: index.html
+3. App opens in browser - DONE!
+
+✅ No installation needed
+✅ No commands to run
+✅ Just click and use!
+
+
+┌──────────────────────────────────────────────────────────────┐
+│  OPTION 2: DEVELOPMENT MODE (FOR EDITING CODE)               │
+│  🛠️ FOR DEVELOPERS                                           │
+└──────────────────────────────────────────────────────────────┘
+
+1. Go to folder: SOURCE_CODE
+2. Open terminal in that folder
+3. Run: npm install
+4. Run: npm run dev
+5. Open: http://localhost:8080
+
+✅ Full source code
+✅ Can edit and modify
+✅ Hot reload on changes
+
+
+═══════════════════════════════════════════════════════════════
+
+🎯 RECOMMENDED: Use OPTION 1 first to test the app!
+
+═══════════════════════════════════════════════════════════════
+
+⚠️ IMPORTANT:
+   - BUILT_VERSION_OPEN_THIS = Ready to use HTML files
+   - SOURCE_CODE = Needs npm install first
+
+💡 TIP:
+   If index.html shows blank page:
+   1. Press F12 in browser
+   2. Check Console tab for errors
+   3. Make sure all files are in same folder
+   4. Try different browser (Chrome recommended)
+
+═══════════════════════════════════════════════════════════════

@@ -5,6 +5,7 @@ import { Upload, FileSpreadsheet, FileJson, FileText, X, Check, ArrowRight } fro
 import { Button } from '@/components/ui/button';
 import { useData } from '@/context/DataContext';
 import { parseFile } from '@/lib/dataParser';
+import { PageHeader } from '@/components/PageHeader';
 
 const fileTypes = [
   { ext: 'CSV', icon: FileSpreadsheet, desc: 'Comma-separated values' },
@@ -83,7 +84,14 @@ export default function UploadPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background bg-grid relative overflow-hidden">
+    <div className="min-h-screen bg-background">
+      <PageHeader 
+        title="Upload Data" 
+        description="Upload your CSV, Excel, JSON, or TXT files to begin analysis"
+        backTo="/"
+      />
+      
+      <div className="bg-grid relative overflow-hidden">
       {/* Gradient orbs */}
       <div className="absolute top-1/4 left-0 w-96 h-96 bg-primary/20 rounded-full blur-3xl opacity-30" />
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-accent/20 rounded-full blur-3xl opacity-20" />
@@ -213,6 +221,7 @@ export default function UploadPage() {
             </div>
           </div>
         </motion.div>
+      </div>
       </div>
     </div>
   );

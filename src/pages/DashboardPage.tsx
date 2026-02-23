@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useData } from '@/context/DataContext';
 import { KPICard } from '@/components/dashboard/KPICard';
+import { PageHeader } from '@/components/PageHeader';
 import { ChartWithExplanation } from '@/components/dashboard/ChartWithExplanation';
 import { ChartSelector } from '@/components/dashboard/ChartSelector';
 import { DataPreviewTable } from '@/components/dashboard/DataPreviewTable';
