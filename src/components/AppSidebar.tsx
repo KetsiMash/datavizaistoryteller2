@@ -81,7 +81,7 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ className }: AppSidebarProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true); // Start expanded by default
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const location = useLocation();
 
@@ -103,14 +103,24 @@ export function AppSidebar({ className }: AppSidebarProps) {
 
   return (
     <>
-      {/* Mobile Menu Button */}
+      {/* Mobile Menu Button - Always visible on mobile */}
       <Button
         variant="ghost"
         size="sm"
-        className="fixed top-4 left-4 z-50 md:hidden bg-background/80 backdrop-blur-sm border border-border/50"
+        className="fixed top-4 left-4 z-50 md:hidden bg-background/95 backdrop-blur-sm border border-border shadow-lg"
         onClick={toggleMobile}
       >
-        {isMobileOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+        {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+      </Button>
+
+      {/* Desktop Sidebar Toggle - Always visible */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="fixed top-4 left-4 z-50 hidden md:flex bg-background/95 backdrop-blur-sm border border-border shadow-lg"
+        onClick={toggleExpanded}
+      >
+        {isExpanded ? <ChevronLeft className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
       </Button>
 
       {/* Mobile Overlay */}
@@ -130,12 +140,11 @@ export function AppSidebar({ className }: AppSidebarProps) {
       <motion.aside
         initial={false}
         animate={{
-          width: isExpanded ? 280 : 80,
-          x: isMobileOpen ? 0 : -100
+          width: isExpanded ? 280 : 80
         }}
         className={cn(
           "fixed left-0 top-0 h-full bg-card/95 backdrop-blur-xl border-r border-border/50 z-40 flex flex-col",
-          "md:translate-x-0 transition-transform duration-300",
+          "transition-all duration-300",
           isMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
           className
         )}

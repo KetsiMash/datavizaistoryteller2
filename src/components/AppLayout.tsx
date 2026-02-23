@@ -10,7 +10,7 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const isHomePage = location.pathname === '/';
-  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [sidebarExpanded, setSidebarExpanded] = useState(true); // Start expanded
 
   // Listen for sidebar expansion changes
   useEffect(() => {
@@ -33,7 +33,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <AppSidebar />
       <main className={cn(
         "flex-1 overflow-auto transition-all duration-300",
-        sidebarExpanded ? "ml-0 md:ml-[280px]" : "ml-0 md:ml-20"
+        sidebarExpanded ? "ml-[280px]" : "ml-20"
       )}>
         {children}
       </main>
