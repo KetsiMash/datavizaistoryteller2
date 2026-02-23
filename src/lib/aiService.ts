@@ -5,6 +5,14 @@ export interface AIResponse {
   answer: string;
   confidence: number;
   sources?: string[];
+  analysisDepth?: 'surface' | 'moderate' | 'deep';
+}
+
+interface DataInsight {
+  type: 'trend' | 'correlation' | 'outlier' | 'distribution' | 'comparison';
+  description: string;
+  significance: 'low' | 'medium' | 'high';
+  recommendation?: string;
 }
 
 export class AIService {
@@ -12,6 +20,7 @@ export class AIService {
   private statistics: ColumnStatistics[] = [];
   private narrative: string = '';
   private charts: any[] = [];
+  private cachedInsights: DataInsight[] = [];
 
   // Update context with current data
   public updateContext(
@@ -24,6 +33,75 @@ export class AIService {
     this.statistics = statistics;
     this.narrative = narrative;
     this.charts = charts;
+    
+    // Perform deep analysis when data is updated
+    if (dataset && statistics.length > 0) {
+      this.cachedInsights = this.performDeepAnalysis();
+    }
+  }
+
+  // Perform comprehensive data analysis
+  private performDeepAnalysis(): DataInsight[] {
+    const insights: DataInsight[] = [];
+    const numericCols = this.statistics.filter(s => s.mean !== undefined);
+    
+    // Distribution analysis
+    numericCols.forEach(col => {
+      const cv = col.std && col.mean ? col.std / col.mean : 0;
+      if (cv > 0.7) {
+        insights.push({
+          type: 'distribution',
+          description: `${col.column} shows high variability (coefficient of variation: ${(cv * 100).toFixed(1)}%), indicating diverse data points or potential segments`,
+          significance: 'high',
+          recommendation: `Segment ${col.column} into groups to understand different patterns`
+        });
+      } else if (cv < 0.1) {
+        insights.push({
+          type: 'distribution',
+          description: `${col.column} is highly consistent with low variability, suggesting stable or controlled values`,
+          significance: 'medium'
+        });
+      }
+    });
+
+    // Outlier detection
+    numericCols.forEach(col => {
+      if (col.mean && col.std) {
+        const range = (col.max as number) - (col.min as number);
+        const expectedRange = col.std * 6; // ~99.7% of data in normal distribution
+        if (range > expectedRange * 2) {
+          insights.push({
+            type: 'outlier',
+            description: `${col.column} contains potential outliers - the range (${range.toFixed(2)}) is much wider than expected from the standard deviation`,
+            significance: 'high',
+            recommendation: 'Investigate extreme values to determine if they are errors or meaningful exceptions'
+          });
+        }
+      }
+    });
+
+    // Comparative analysis
+    if (numericCols.length >= 2) {
+      const sorted = [...numericCols].sort((a, b) => (b.mean || 0) - (a.mean || 0));
+      insights.push({
+        type: 'comparison',
+        description: `${sorted[0].column} has the highest average value (${sorted[0].mean?.toFixed(2)}), which is ${((sorted[0].mean! / sorted[sorted.length - 1].mean!) - 1) * 100 > 0 ? ((sorted[0].mean! / sorted[sorted.length - 1].mean!) - 1) * 100 : 0}% higher than ${sorted[sorted.length - 1].column}`,
+        significance: 'medium'
+      });
+    }
+
+    // Trend indicators
+    const timeCol = this.statistics.find(s => /date|time|year|month|period/i.test(s.column));
+    if (timeCol && numericCols.length > 0) {
+      insights.push({
+        type: 'trend',
+        description: `Time-series data detected spanning from ${timeCol.min} to ${timeCol.max}, enabling trend analysis for ${numericCols.length} numeric variables`,
+        significance: 'high',
+        recommendation: 'Analyze trends over time to identify growth patterns, seasonality, or cyclical behavior'
+      });
+    }
+
+    return insights;
   }
 
   // Main AI query processor with advanced reasoning
@@ -65,6 +143,16 @@ export class AIService {
     // Question type detection with priority order
     if (this.isGreeting(question)) {
       return this.handleGreeting();
+    }
+
+    // Full data story request
+    if (this.isDataStoryRequest(question)) {
+      return this.generateComprehensiveDataStory();
+    }
+
+    // Deep analysis request
+    if (this.isDeepAnalysisRequest(question)) {
+      return this.provideDeepAnalysis(question);
     }
 
     // General knowledge and advice (no data needed)
@@ -140,6 +228,14 @@ export class AIService {
   // Question type detectors
   private isGreeting(q: string): boolean {
     return /^(hi|hello|hey|greetings|good morning|good afternoon|good evening)/.test(q);
+  }
+
+  private isDataStoryRequest(q: string): boolean {
+    return /(full story|complete story|data story|tell me everything|full analysis|comprehensive|complete analysis|analyze everything)/i.test(q);
+  }
+
+  private isDeepAnalysisRequest(q: string): boolean {
+    return /(deep|detailed|thorough|in-depth|comprehensive|full).*(analys|insight|explanation|breakdown)/i.test(q);
   }
 
   private isAboutDataset(q: string): boolean {
@@ -221,14 +317,154 @@ export class AIService {
   }
 
   private describeDataset(): AIResponse {
-    const numericCols = this.statistics.filter(s => s.mean !== undefined).length;
-    const categoricalCols = this.statistics.length - numericCols;
+    const numericCols = this.statistics.filter(s => s.mean !== undefined);
+    const categoricalCols = this.statistics.filter(s => s.mean === undefined);
 
-    const answer = `Your dataset "${this.dataset?.name}" contains ${this.dataset?.rowCount} records with ${this.statistics.length} columns. ` +
-      `It has ${numericCols} numeric columns and ${categoricalCols} categorical columns. ` +
-      `The columns are: ${this.statistics.map(s => s.column).join(', ')}.`;
+    const story: string[] = [];
 
-    return { answer, confidence: 1.0, sources: ['dataset metadata'] };
+    // Professional opening
+    story.push(`📊 PROFESSIONAL DATA ANALYSIS: ${this.dataset?.name}`);
+    story.push(`\nAs a data analyst, let me walk you through what this dataset reveals:`);
+
+    // Dataset Overview with Context
+    story.push(`\n🔍 DATASET OVERVIEW:`);
+    story.push(`We're working with ${this.dataset?.rowCount.toLocaleString()} records - ${this.dataset!.rowCount > 1000 ? 'a substantial sample size that provides statistical confidence' : this.dataset!.rowCount > 500 ? 'a solid dataset for meaningful analysis' : 'a moderate dataset that can reveal initial patterns'}. The data is structured across ${this.statistics.length} dimensions, giving us ${numericCols.length > categoricalCols.length ? 'a quantitatively-rich' : 'a categorically-diverse'} analytical foundation.`);
+
+    // Data Architecture Analysis
+    story.push(`\n📋 DATA ARCHITECTURE:`);
+    
+    if (categoricalCols.length > 0) {
+      story.push(`\nCategorical Dimensions (${categoricalCols.length}):`);
+      categoricalCols.forEach(col => {
+        const uniqueCount = col.uniqueValues || 'multiple';
+        story.push(`  • ${col.column}: ${uniqueCount} distinct values - This provides ${typeof uniqueCount === 'number' && uniqueCount < 10 ? 'clear segmentation' : 'rich granularity'} for grouping and filtering`);
+      });
+      
+      // Identify key dimensions
+      const dateCol = categoricalCols.find(c => /date|time|year|month/i.test(c.column));
+      const locationCol = categoricalCols.find(c => /country|region|city|location|market/i.test(c.column));
+      const categoryCol = categoricalCols.find(c => /category|type|class|commodity|product/i.test(c.column));
+      
+      story.push(`\n🎯 Key Analytical Dimensions Identified:`);
+      if (dateCol) {
+        story.push(`  • Temporal: ${dateCol.column} - Enables trend analysis, seasonality detection, and forecasting`);
+      }
+      if (locationCol) {
+        story.push(`  • Geographic: ${locationCol.column} - Allows regional comparisons and location-based insights`);
+      }
+      if (categoryCol) {
+        story.push(`  • Classification: ${categoryCol.column} - Supports category-level analysis and segmentation`);
+      }
+    }
+
+    if (numericCols.length > 0) {
+      story.push(`\nQuantitative Measures (${numericCols.length}):`);
+      numericCols.forEach(col => {
+        const cv = col.std && col.mean ? (col.std / col.mean) * 100 : 0;
+        story.push(`  • ${col.column}: Range ${col.min} to ${col.max}, Average ${col.mean?.toFixed(2)} - ${cv > 50 ? 'High variability suggests diverse patterns' : cv > 20 ? 'Moderate spread indicates normal variation' : 'Low variability shows consistency'}`);
+      });
+    }
+
+    // Business Context & Insights
+    story.push(`\n💡 ANALYTICAL INSIGHTS:`);
+    
+    // Detect data type and provide context
+    const dataContext = this.inferDataContext();
+    if (dataContext) {
+      story.push(dataContext);
+    }
+
+    // Statistical Significance
+    if (numericCols.length > 0) {
+      const primaryMetric = numericCols[0];
+      const cv = primaryMetric.std && primaryMetric.mean ? (primaryMetric.std / primaryMetric.mean) * 100 : 0;
+      
+      story.push(`\nFocusing on ${primaryMetric.column} as our primary metric:`);
+      story.push(`  • The average value of ${primaryMetric.mean?.toFixed(2)} represents the central tendency`);
+      story.push(`  • With a coefficient of variation of ${cv.toFixed(1)}%, we see ${cv > 50 ? 'significant diversity - suggesting multiple segments or market conditions' : cv > 20 ? 'healthy variation - typical of real-world data' : 'remarkable consistency - indicating stable conditions or controlled environment'}`);
+      
+      if (primaryMetric.min && primaryMetric.max) {
+        const range = (primaryMetric.max as number) - (primaryMetric.min as number);
+        story.push(`  • The range of ${range.toFixed(2)} (from ${primaryMetric.min} to ${primaryMetric.max}) ${range > (primaryMetric.mean || 1) * 2 ? 'is substantial, warranting outlier investigation' : 'is reasonable for this metric'}`);
+      }
+    }
+
+    // Comparative Analysis
+    if (numericCols.length >= 2) {
+      story.push(`\n🔄 COMPARATIVE PERSPECTIVE:`);
+      const sorted = [...numericCols].sort((a, b) => (b.mean || 0) - (a.mean || 0));
+      story.push(`When comparing our numeric variables:`);
+      story.push(`  • ${sorted[0].column} leads with an average of ${sorted[0].mean?.toFixed(2)}`);
+      story.push(`  • ${sorted[sorted.length - 1].column} shows ${sorted[sorted.length - 1].mean?.toFixed(2)} on average`);
+      const ratio = (sorted[0].mean || 1) / (sorted[sorted.length - 1].mean || 1);
+      story.push(`  • This ${ratio.toFixed(1)}x difference ${ratio > 10 ? 'indicates vastly different scales - consider normalization for comparison' : ratio > 3 ? 'shows notable magnitude variation' : 'suggests comparable scales'}`);
+    }
+
+    // Data Quality Assessment
+    story.push(`\n✅ DATA QUALITY PERSPECTIVE:`);
+    story.push(`  • Sample Size: ${this.dataset?.rowCount.toLocaleString()} records ${this.dataset!.rowCount > 1000 ? 'provides robust statistical power for confident conclusions' : this.dataset!.rowCount > 100 ? 'offers adequate data for preliminary insights' : 'is limited - findings should be validated with more data'}`);
+    story.push(`  • Completeness: ${this.statistics.length} complete dimensions enable multi-faceted analysis`);
+    story.push(`  • Structure: ${categoricalCols.length > 0 && numericCols.length > 0 ? 'Balanced mix of categorical and numeric data supports comprehensive analysis' : numericCols.length > 0 ? 'Numeric-heavy structure ideal for statistical modeling' : 'Categorical focus enables segmentation and classification'}`);
+
+    // Strategic Recommendations
+    story.push(`\n🎯 RECOMMENDED ANALYSIS APPROACH:`);
+    const recommendations: string[] = [];
+    
+    if (categoricalCols.find(c => /date|time/i.test(c.column))) {
+      recommendations.push('Time-series analysis to identify trends, seasonality, and growth patterns');
+    }
+    
+    if (categoricalCols.find(c => /country|region|location/i.test(c.column))) {
+      recommendations.push('Geographic analysis to compare regional performance and identify location-specific patterns');
+    }
+    
+    if (numericCols.length >= 2) {
+      recommendations.push('Correlation analysis to uncover relationships between variables');
+    }
+    
+    if (categoricalCols.length >= 2) {
+      recommendations.push('Cross-tabulation to understand how categories interact');
+    }
+    
+    recommendations.push('Outlier detection to identify exceptional cases or data quality issues');
+    recommendations.push('Segmentation analysis to find distinct groups with different characteristics');
+    
+    recommendations.forEach((rec, idx) => {
+      story.push(`  ${idx + 1}. ${rec}`);
+    });
+
+    // Professional Conclusion
+    story.push(`\n📝 ANALYST'S CONCLUSION:`);
+    story.push(`This dataset presents ${numericCols.length > 2 ? 'rich analytical opportunities' : 'focused analytical scope'} with ${this.dataset!.rowCount > 1000 ? 'strong' : 'adequate'} statistical foundation. The ${categoricalCols.length > 0 ? 'categorical dimensions provide excellent segmentation capabilities' : 'numeric focus enables deep statistical analysis'}, while ${numericCols.length > 0 ? 'the quantitative measures allow for trend analysis and forecasting' : 'the categorical structure supports classification and grouping'}. I recommend starting with ${recommendations[0]?.toLowerCase() || 'exploratory data analysis'} to establish baseline understanding, then progressing to deeper analytical techniques.`);
+
+    return {
+      answer: story.join('\n'),
+      confidence: 0.95,
+      sources: this.statistics.map(s => s.column),
+      analysisDepth: 'deep'
+    };
+  }
+
+  // Infer business context from column names
+  private inferDataContext(): string | null {
+    const colNames = this.statistics.map(s => s.column.toLowerCase()).join(' ');
+    
+    if (/price|cost|revenue|sales|amount/.test(colNames)) {
+      if (/market|commodity|agriculture|product/.test(colNames)) {
+        return `This appears to be market/pricing data, likely tracking commodity or product prices across different markets. This type of data is crucial for understanding market dynamics, price volatility, and competitive positioning.`;
+      }
+      return `This appears to be financial/transactional data. Such datasets are valuable for revenue analysis, pricing strategy, and financial forecasting.`;
+    }
+    
+    if (/customer|user|client/.test(colNames)) {
+      return `This appears to be customer-related data. These datasets are essential for understanding customer behavior, segmentation, and lifetime value analysis.`;
+    }
+    
+    if (/date|time/.test(colNames) && /count|total|sum/.test(colNames)) {
+      return `This appears to be time-series operational data, useful for tracking performance metrics, identifying trends, and forecasting future values.`;
+    }
+    
+    return `This dataset structure suggests ${this.statistics.length > 5 ? 'comprehensive' : 'focused'} data collection, enabling ${this.statistics.filter(s => s.mean !== undefined).length > 0 ? 'quantitative' : 'qualitative'} analysis.`;
   }
 
   private describeColumns(question: string): AIResponse {
@@ -400,25 +636,87 @@ export class AIService {
   }
 
   private generateContextualResponse(question: string): AIResponse {
-    // Intelligent fallback based on available data
-    const suggestions = [];
-    
-    if (this.narrative) {
-      suggestions.push("read the full data story");
-    }
-    if (this.charts.length > 0) {
-      suggestions.push("explore the visualizations");
-    }
-    if (this.statistics.length > 0) {
-      suggestions.push(`ask about specific columns like ${this.statistics[0].column}`);
+    // Instead of saying "I'm not sure", analyze the data and provide intelligent response
+    if (!this.dataset || this.statistics.length === 0) {
+      return {
+        answer: "I don't have data loaded yet, but I can still help! I can explain data concepts, provide analysis advice, or guide you on best practices. What would you like to know?",
+        confidence: 0.8
+      };
     }
 
-    const answer = `I'm not sure about "${question}", but I can help you ${suggestions.join(', or ')}. ` +
-      `Try asking about statistics, trends, comparisons, or insights from your data.`;
+    // Intelligent data-driven response for any question
+    const story: string[] = [];
+    const numericCols = this.statistics.filter(s => s.mean !== undefined);
+    const categoricalCols = this.statistics.filter(s => s.mean === undefined);
+
+    story.push(`Let me analyze your data to answer "${question}":`);
+    story.push(`\nBased on your dataset "${this.dataset.name}" with ${this.dataset.rowCount.toLocaleString()} records:`);
+
+    // Extract keywords from question to find relevant columns
+    const questionWords = question.toLowerCase().split(/\s+/);
+    const relevantCols = this.statistics.filter(col => 
+      questionWords.some(word => col.column.toLowerCase().includes(word) || word.includes(col.column.toLowerCase()))
+    );
+
+    if (relevantCols.length > 0) {
+      story.push(`\nI found relevant data columns: ${relevantCols.map(c => c.column).join(', ')}`);
+      
+      relevantCols.forEach(col => {
+        if (col.mean !== undefined) {
+          story.push(`\n${col.column}:`);
+          story.push(`  • Average: ${col.mean.toFixed(2)}`);
+          story.push(`  • Range: ${col.min} to ${col.max}`);
+          story.push(`  • This shows ${col.std && col.mean && (col.std / col.mean) > 0.5 ? 'high variability' : 'consistent values'}`);
+        } else {
+          story.push(`\n${col.column}: Categorical variable with ${col.uniqueValues || 'multiple'} distinct values`);
+        }
+      });
+    } else {
+      // Provide general insights when no specific columns match
+      story.push(`\nHere's what I can tell you about your data:`);
+      
+      if (numericCols.length > 0) {
+        const primaryMetric = numericCols[0];
+        story.push(`\nKey metric - ${primaryMetric.column}:`);
+        story.push(`  • Average value: ${primaryMetric.mean?.toFixed(2)}`);
+        story.push(`  • Ranges from ${primaryMetric.min} to ${primaryMetric.max}`);
+        
+        const cv = primaryMetric.std && primaryMetric.mean ? (primaryMetric.std / primaryMetric.mean) * 100 : 0;
+        story.push(`  • Variability: ${cv.toFixed(1)}% - ${cv > 50 ? 'High diversity in values' : cv > 20 ? 'Moderate variation' : 'Consistent values'}`);
+      }
+
+      if (categoricalCols.length > 0) {
+        story.push(`\nCategorical dimensions: ${categoricalCols.map(c => c.column).join(', ')}`);
+        story.push(`These allow you to segment and group your data for deeper insights.`);
+      }
+
+      // Identify patterns based on column names
+      const hasTime = this.statistics.some(s => /date|time|year|month/i.test(s.column));
+      const hasLocation = this.statistics.some(s => /country|region|city|location/i.test(s.column));
+      const hasCategory = this.statistics.some(s => /category|type|class|commodity/i.test(s.column));
+
+      if (hasTime) {
+        story.push(`\n⏰ Time dimension detected - You can analyze trends over time`);
+      }
+      if (hasLocation) {
+        story.push(`\n🌍 Geographic dimension detected - You can compare across locations`);
+      }
+      if (hasCategory) {
+        story.push(`\n📊 Category dimension detected - You can compare different categories`);
+      }
+    }
+
+    // Provide actionable insights
+    story.push(`\n💡 To get more specific insights:`);
+    story.push(`  • Ask about specific columns like "${this.statistics[0].column}"`);
+    story.push(`  • Request comparisons: "Compare ${this.statistics[0]?.column} and ${this.statistics[1]?.column}"`);
+    story.push(`  • Ask for trends: "What trends do you see?"`);
+    story.push(`  • Request full analysis: "Tell me the complete data story"`);
 
     return {
-      answer,
-      confidence: 0.5
+      answer: story.join('\n'),
+      confidence: 0.75,
+      sources: relevantCols.length > 0 ? relevantCols.map(c => c.column) : this.statistics.slice(0, 3).map(s => s.column)
     };
   }
 
@@ -641,6 +939,239 @@ export class AIService {
     const answer = `Actionable next steps: ${actions.slice(0, 4).map((a, i) => `${i + 1}) ${a}`).join('; ')}. Which would you like to explore first?`;
 
     return { answer, confidence: 0.9, sources: ['strategic analysis'] };
+  }
+
+  // Comprehensive Data Story Generator
+  private generateComprehensiveDataStory(): AIResponse {
+    if (!this.dataset || this.statistics.length === 0) {
+      return {
+        answer: 'I need data to analyze first. Please upload your dataset and I\'ll provide a comprehensive analysis.',
+        confidence: 1.0
+      };
+    }
+
+    const story: string[] = [];
+    const numericCols = this.statistics.filter(s => s.mean !== undefined);
+    const categoricalCols = this.statistics.filter(s => s.mean === undefined);
+
+    // Executive Summary
+    story.push(`📊 COMPREHENSIVE DATA ANALYSIS REPORT`);
+    story.push(`\nDataset: "${this.dataset.name}"`);
+    story.push(`\n🔍 EXECUTIVE SUMMARY:`);
+    story.push(`This analysis examines ${this.dataset.rowCount.toLocaleString()} records across ${this.statistics.length} variables. The dataset contains ${numericCols.length} quantitative measures and ${categoricalCols.length} categorical dimensions, providing a ${numericCols.length > categoricalCols.length ? 'quantitatively-rich' : 'categorically-diverse'} foundation for analysis.`);
+
+    // Data Structure Analysis
+    story.push(`\n\n📋 DATA STRUCTURE:`);
+    story.push(`The data architecture consists of:`);
+    if (numericCols.length > 0) {
+      story.push(`- Numeric variables: ${numericCols.map(c => c.column).join(', ')}. These enable statistical analysis, trend identification, and predictive modeling.`);
+    }
+    if (categoricalCols.length > 0) {
+      story.push(`- Categorical variables: ${categoricalCols.map(c => c.column).join(', ')}. These provide segmentation and classification capabilities.`);
+    }
+
+    // Statistical Deep Dive
+    if (numericCols.length > 0) {
+      story.push(`\n\n📈 STATISTICAL ANALYSIS:`);
+      
+      numericCols.slice(0, 3).forEach(col => {
+        const cv = col.std && col.mean ? (col.std / col.mean) * 100 : 0;
+        const range = (col.max as number) - (col.min as number);
+        
+        story.push(`\n${col.column}:`);
+        story.push(`  • Central Tendency: Mean of ${col.mean?.toFixed(2)}, Median of ${col.median?.toFixed(2) || 'N/A'}`);
+        story.push(`  • Spread: Ranges from ${col.min} to ${col.max} (span: ${range.toFixed(2)})`);
+        story.push(`  • Variability: Standard deviation of ${col.std?.toFixed(2)}, representing ${cv.toFixed(1)}% coefficient of variation`);
+        
+        // Interpretation
+        if (cv > 50) {
+          story.push(`  • Interpretation: HIGH variability suggests diverse data points, multiple segments, or potential outliers. This indicates heterogeneous behavior worth investigating.`);
+        } else if (cv > 20) {
+          story.push(`  • Interpretation: MODERATE variability indicates normal business fluctuation. Values cluster around the mean with expected deviation.`);
+        } else {
+          story.push(`  • Interpretation: LOW variability shows consistency and stability. Values are tightly clustered, suggesting controlled or uniform conditions.`);
+        }
+      });
+    }
+
+    // Key Insights from Deep Analysis
+    if (this.cachedInsights.length > 0) {
+      story.push(`\n\n💡 KEY INSIGHTS:`);
+      
+      const highSignificance = this.cachedInsights.filter(i => i.significance === 'high');
+      highSignificance.forEach((insight, idx) => {
+        story.push(`\n${idx + 1}. ${insight.description}`);
+        if (insight.recommendation) {
+          story.push(`   → Recommendation: ${insight.recommendation}`);
+        }
+      });
+    }
+
+    // Comparative Analysis
+    if (numericCols.length >= 2) {
+      story.push(`\n\n🔄 COMPARATIVE ANALYSIS:`);
+      const sorted = [...numericCols].sort((a, b) => (b.mean || 0) - (a.mean || 0));
+      story.push(`Ranking by average values:`);
+      sorted.slice(0, 3).forEach((col, idx) => {
+        story.push(`  ${idx + 1}. ${col.column}: ${col.mean?.toFixed(2)} (${idx === 0 ? 'highest' : idx === sorted.length - 1 ? 'lowest' : 'mid-range'})`);
+      });
+      
+      const ratio = sorted[0].mean! / sorted[sorted.length - 1].mean!;
+      story.push(`\nThe highest variable (${sorted[0].column}) is ${ratio.toFixed(2)}x the lowest (${sorted[sorted.length - 1].column}), indicating ${ratio > 10 ? 'significant scale differences' : ratio > 3 ? 'notable magnitude variation' : 'comparable scales'} across metrics.`);
+    }
+
+    // Trend Analysis
+    const timeCol = this.statistics.find(s => /date|time|year|month|period/i.test(s.column));
+    if (timeCol) {
+      story.push(`\n\n📅 TEMPORAL ANALYSIS:`);
+      story.push(`Time dimension identified: ${timeCol.column} spanning from ${timeCol.min} to ${timeCol.max}.`);
+      story.push(`This enables longitudinal analysis to identify:`);
+      story.push(`  • Growth or decline patterns over time`);
+      story.push(`  • Seasonal or cyclical behaviors`);
+      story.push(`  • Inflection points and trend changes`);
+      story.push(`  • Forecasting opportunities for future periods`);
+    }
+
+    // Data Quality Assessment
+    story.push(`\n\n✅ DATA QUALITY ASSESSMENT:`);
+    story.push(`Sample size: ${this.dataset.rowCount.toLocaleString()} records provides ${this.dataset.rowCount > 1000 ? 'statistically robust' : this.dataset.rowCount > 100 ? 'adequate' : 'limited'} analytical power.`);
+    
+    const hasOutliers = this.cachedInsights.some(i => i.type === 'outlier');
+    if (hasOutliers) {
+      story.push(`Outliers detected: Requires investigation to determine if they represent errors or meaningful exceptions.`);
+    } else {
+      story.push(`Data appears clean with values within expected ranges.`);
+    }
+
+    // Strategic Recommendations
+    story.push(`\n\n🎯 STRATEGIC RECOMMENDATIONS:`);
+    const recommendations: string[] = [];
+    
+    if (numericCols.length >= 2) {
+      recommendations.push(`Perform correlation analysis to identify relationships between variables and potential causal factors`);
+    }
+    
+    if (timeCol) {
+      recommendations.push(`Conduct time-series forecasting to predict future trends and plan accordingly`);
+    }
+    
+    if (this.cachedInsights.some(i => i.significance === 'high')) {
+      recommendations.push(`Investigate high-significance insights immediately as they represent critical findings`);
+    }
+    
+    recommendations.push(`Create segmented analyses to understand different groups or patterns within the data`);
+    recommendations.push(`Establish KPI monitoring dashboards to track changes over time`);
+    recommendations.push(`Validate findings with domain experts to ensure business context alignment`);
+    
+    recommendations.forEach((rec, idx) => {
+      story.push(`${idx + 1}. ${rec}`);
+    });
+
+    // Conclusion
+    story.push(`\n\n📝 CONCLUSION:`);
+    story.push(`This dataset presents ${numericCols.length > 3 ? 'rich analytical opportunities' : 'focused analytical scope'} with ${this.cachedInsights.filter(i => i.significance === 'high').length} high-priority insights requiring attention. The ${this.dataset.rowCount > 1000 ? 'substantial' : 'moderate'} sample size supports ${this.dataset.rowCount > 1000 ? 'confident' : 'preliminary'} conclusions. ${timeCol ? 'The temporal dimension enables predictive analytics and trend forecasting.' : 'Consider adding time-based tracking for longitudinal insights.'} Immediate focus should be on ${this.cachedInsights[0]?.description || 'exploring variable relationships and patterns'}.`);
+
+    const fullStory = story.join('\n');
+
+    return {
+      answer: fullStory,
+      confidence: 0.95,
+      sources: this.statistics.map(s => s.column),
+      analysisDepth: 'deep'
+    };
+  }
+
+  // Deep Analysis Provider
+  private provideDeepAnalysis(question: string): AIResponse {
+    if (!this.dataset || this.statistics.length === 0) {
+      return {
+        answer: 'I need data to perform deep analysis. Upload your dataset first.',
+        confidence: 1.0
+      };
+    }
+
+    // Extract what they want deep analysis on
+    const mentionedColumn = this.statistics.find(s => 
+      question.toLowerCase().includes(s.column.toLowerCase())
+    );
+
+    if (mentionedColumn && mentionedColumn.mean !== undefined) {
+      return this.deepDiveColumn(mentionedColumn);
+    }
+
+    // General deep analysis
+    return this.generateComprehensiveDataStory();
+  }
+
+  private deepDiveColumn(col: ColumnStatistics): AIResponse {
+    const analysis: string[] = [];
+    const cv = col.std && col.mean ? (col.std / col.mean) * 100 : 0;
+    const range = (col.max as number) - (col.min as number);
+
+    analysis.push(`🔬 DEEP DIVE ANALYSIS: ${col.column}`);
+    
+    analysis.push(`\n📊 DESCRIPTIVE STATISTICS:`);
+    analysis.push(`• Mean (Average): ${col.mean?.toFixed(2)} - The central value around which data points cluster`);
+    analysis.push(`• Median: ${col.median?.toFixed(2) || 'N/A'} - The middle value when data is sorted`);
+    analysis.push(`• Standard Deviation: ${col.std?.toFixed(2)} - Measures spread from the mean`);
+    analysis.push(`• Range: ${col.min} to ${col.max} (span of ${range.toFixed(2)})`);
+    
+    analysis.push(`\n🎯 DISTRIBUTION CHARACTERISTICS:`);
+    if (col.mean && col.median) {
+      const skew = col.mean - col.median;
+      if (Math.abs(skew) < col.std! * 0.1) {
+        analysis.push(`• Symmetrical distribution - Mean and median are nearly equal, suggesting balanced data`);
+      } else if (skew > 0) {
+        analysis.push(`• Right-skewed distribution - Mean > Median indicates some high outliers pulling the average up`);
+      } else {
+        analysis.push(`• Left-skewed distribution - Mean < Median indicates some low outliers pulling the average down`);
+      }
+    }
+    
+    analysis.push(`• Coefficient of Variation: ${cv.toFixed(1)}% - ${cv > 50 ? 'High' : cv > 20 ? 'Moderate' : 'Low'} relative variability`);
+    
+    analysis.push(`\n💡 BUSINESS INTERPRETATION:`);
+    if (cv > 50) {
+      analysis.push(`This variable shows HIGH variability, meaning:`);
+      analysis.push(`  - Data points are widely dispersed`);
+      analysis.push(`  - Multiple distinct segments likely exist`);
+      analysis.push(`  - One-size-fits-all strategies may not work`);
+      analysis.push(`  - Segmentation analysis recommended`);
+    } else if (cv > 20) {
+      analysis.push(`This variable shows MODERATE variability, meaning:`);
+      analysis.push(`  - Normal business fluctuation`);
+      analysis.push(`  - Some diversity but manageable`);
+      analysis.push(`  - Standard strategies applicable`);
+      analysis.push(`  - Monitor for trend changes`);
+    } else {
+      analysis.push(`This variable shows LOW variability, meaning:`);
+      analysis.push(`  - Highly consistent values`);
+      analysis.push(`  - Stable or controlled conditions`);
+      analysis.push(`  - Predictable behavior`);
+      analysis.push(`  - May indicate saturation or constraints`);
+    }
+    
+    analysis.push(`\n🎬 ACTIONABLE RECOMMENDATIONS:`);
+    if (cv > 50) {
+      analysis.push(`1. Segment data into groups to understand different patterns`);
+      analysis.push(`2. Investigate outliers - they may represent opportunities or problems`);
+      analysis.push(`3. Consider different strategies for different segments`);
+    } else if (cv > 20) {
+      analysis.push(`1. Monitor trends over time to catch early changes`);
+      analysis.push(`2. Identify factors that influence variation`);
+      analysis.push(`3. Set control limits for quality management`);
+    } else {
+      analysis.push(`1. Investigate why values are so consistent`);
+      analysis.push(`2. Look for opportunities to increase positive variation`);
+      analysis.push(`3. Ensure consistency isn't masking underlying issues`);
+    }
+
+    return {
+      answer: analysis.join('\n'),
+      confidence: 0.95,
+      sources: [col.column],
+      analysisDepth: 'deep'
+    };
   }
 }
 

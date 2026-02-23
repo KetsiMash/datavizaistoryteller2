@@ -44,7 +44,7 @@ interface VoiceCommand {
 }
 
 export function VoiceAssistant() {
-  const { speak, voiceState, isSupported } = useVoice();
+  const { speak, voiceState, isSupported, stop: stopVoice } = useVoice();
   const { dataset, statistics, charts, narrative } = useData();
   
   const [isOpen, setIsOpen] = React.useState(false);
@@ -209,8 +209,18 @@ export function VoiceAssistant() {
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
-            className="fixed bottom-6 right-6 z-50"
+            className="fixed bottom-6 right-6 z-50 flex flex-col gap-2"
           >
+            {voiceState.isPlaying && (
+              <Button
+                onClick={stopVoice}
+                size="lg"
+                variant="destructive"
+                className="rounded-full w-14 h-14 shadow-lg animate-pulse"
+              >
+                <VolumeX className="w-6 h-6" />
+              </Button>
+            )}
             <Button
               onClick={() => setIsOpen(true)}
               size="lg"
@@ -359,9 +369,9 @@ export function VoiceAssistant() {
                       
                       {voiceState.isPlaying && (
                         <Button
-                          variant="outline"
+                          variant="destructive"
                           size="sm"
-                          onClick={() => {/* Voice stop handled by VoiceContext */}}
+                          onClick={stopVoice}
                         >
                           <VolumeX className="w-4 h-4 mr-2" />
                           Stop Speaking
