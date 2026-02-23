@@ -26,7 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { useVoice } from '@/context/VoiceContext';
 import { useData } from '@/context/DataContext';
 import { toast } from '@/hooks/use-toast';
-import { aiService } from '@/lib/aiService';
+import { intelligentAI } from '@/lib/intelligentAI';
 
 interface Message {
   id: string;
@@ -57,8 +57,8 @@ export function VoiceAssistant() {
 
   // Update AI service context when data changes
   React.useEffect(() => {
-    aiService.updateContext(dataset, statistics, narrative, charts);
-  }, [dataset, statistics, narrative, charts]);
+    intelligentAI.updateContext(dataset, statistics, narrative);
+  }, [dataset, statistics, narrative]);
 
   // Initialize speech recognition with improved settings
   React.useEffect(() => {
@@ -155,8 +155,8 @@ export function VoiceAssistant() {
     setIsProcessing(true);
     
     try {
-      // Use AI service to generate intelligent response
-      const aiResponse = await aiService.query(input);
+      // Use intelligent AI service to generate expert response
+      const aiResponse = await intelligentAI.query(input);
       
       // Add AI response to messages
       addMessage('assistant', aiResponse.answer);
