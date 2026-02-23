@@ -52,27 +52,62 @@ export function VoiceAssistant() {
   const [inputValue, setInputValue] = React.useState('');
   const [recognition, setRecognition] = React.useState<SpeechRecognition | null>(null);
 
-  // Initialize speech recognition
+  // Initialize speech recognition with improved settings
   React.useEffect(() => {
-    if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
-      const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
+    if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       const recognitionInstance = new SpeechRecognition();
       
+      // Improved recognition settings
       recognitionInstance.continuous = false;
-      recognitionInstance.interimResults = false;
-      recognitionInstance.lang = 'en-US';
+      recognitionInstance.interimResults = true; // Show interim results for better UX
+      recognitionInstance.lang = 'en-US'; // English (US)
+      recognitionInstance.maxAlternatives = 3; // Get multiple alternatives
       
-      recognitionInstance.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        handleVoiceInput(transcript);
+      recognitionInstance.onstart = () => {
+        setIsListening(true);
+        toast({
+          title: "Listening...",
+          description: "Speak your command now",
+        });
+      };
+      
+      recognitionInstance.onresult = (event: any) => {
+        // Get the most confident result
+        let transcript = '';
+        let confidence = 0;
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            transcript = event.results[i][0].transcript;
+            confidence = event.results[i][0].confidence;
+            break;
+          }
+        }
+        
+        if (transcript) {
+          console.log('Voice input:', transcript, 'Confidence:', confidence);
+          handleVoiceInput(transcript);
+        }
         setIsListening(false);
       };
       
-      recognitionInstance.onerror = () => {
+      recognitionInstance.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
         setIsListening(false);
+        
+        let errorMessage = "Could not process voice input. Please try again.";
+        if (event.error === 'no-speech') {
+          errorMessage = "No speech detected. Please try again.";
+        } else if (event.error === 'audio-capture') {
+          errorMessage = "Microphone not available. Please check your settings.";
+        } else if (event.error === 'not-allowed') {
+          errorMessage = "Microphone permission denied. Please allow microphone access.";
+        }
+        
         toast({
           title: "Voice Recognition Error",
-          description: "Could not process voice input. Please try again.",
+          description: errorMessage,
           variant: "destructive"
         });
       };
@@ -85,10 +120,15 @@ export function VoiceAssistant() {
     }
   }, []);
 
-  // Voice commands configuration
+  // Voice commands configuration with flexible pattern matching
   const voiceCommands: VoiceCommand[] = React.useMemo(() => [
     {
-      trigger: ['read story', 'tell story', 'narrate story', 'play story'],
+      trigger: [
+        'read', 'tell', 'narrate', 'play', 'story', 'narrative',
+        'read story', 'tell story', 'narrate story', 'play story',
+        'read the story', 'tell me the story', 'read data story',
+        'play the narrative', 'narrate the data'
+      ],
       action: 'speak_narrative',
       description: 'Read the complete data story',
       handler: async () => {
@@ -101,7 +141,13 @@ export function VoiceAssistant() {
       }
     },
     {
-      trigger: ['summarize data', 'data summary', 'overview', 'tell me about the data'],
+      trigger: [
+        'summarize', 'summary', 'overview', 'data', 'about',
+        'summarize data', 'data summary', 'give summary',
+        'tell me about the data', 'what is the data',
+        'describe data', 'explain data', 'data overview',
+        'show me the data', 'tell me about data'
+      ],
       action: 'summarize',
       description: 'Provide a data summary',
       handler: async () => {
@@ -115,7 +161,12 @@ export function VoiceAssistant() {
       }
     },
     {
-      trigger: ['show charts', 'display charts', 'what charts', 'available charts'],
+      trigger: [
+        'charts', 'chart', 'visualizations', 'graphs', 'show',
+        'show charts', 'display charts', 'what charts',
+        'available charts', 'list charts', 'show me charts',
+        'what visualizations', 'show graphs', 'display graphs'
+      ],
       action: 'list_charts',
       description: 'List available charts',
       handler: () => {
@@ -129,11 +180,16 @@ export function VoiceAssistant() {
       }
     },
     {
-      trigger: ['help', 'what can you do', 'commands', 'voice commands'],
+      trigger: [
+        'help', 'commands', 'what', 'how', 'can you',
+        'what can you do', 'voice commands', 'available commands',
+        'show commands', 'list commands', 'help me',
+        'what are you', 'what do you do', 'how do i use this'
+      ],
       action: 'help',
       description: 'Show available commands',
       handler: () => {
-        const helpText = `I can help you with: ${voiceCommands.map(cmd => cmd.description).join(', ')}. Just speak naturally or type your request.`;
+        const helpText = `I can help you with: Read the complete data story, Provide a data summary, List available charts, Show available commands. Just speak naturally or type your request.`;
         addMessage('assistant', helpText);
         speak(helpText);
       }
@@ -164,11 +220,26 @@ export function VoiceAssistant() {
   };
 
   const processCommand = async (input: string) => {
-    const lowerInput = input.toLowerCase();
+    const lowerInput = input.toLowerCase().trim();
     
-    // Find matching command
+    // Find matching command with flexible matching
     const matchedCommand = voiceCommands.find(cmd => 
-      cmd.trigger.some(trigger => lowerInput.includes(trigger))
+      cmd.trigger.some(trigger => {
+        const triggerWords = trigger.toLowerCase().split(' ');
+        const inputWords = lowerInput.split(' ');
+        
+        // Check if trigger is contained in input
+        if (lowerInput.includes(trigger.toLowerCase())) {
+          return true;
+        }
+        
+        // Check if any trigger word matches any input word
+        return triggerWords.some(triggerWord => 
+          inputWords.some(inputWord => 
+            inputWord.includes(triggerWord) || triggerWord.includes(inputWord)
+          )
+        );
+      })
     );
     
     if (matchedCommand) {
@@ -178,7 +249,7 @@ export function VoiceAssistant() {
         addMessage('assistant', 'Sorry, I encountered an error processing that command.');
       }
     } else {
-      // Generic response for unrecognized commands
+      // More helpful response for unrecognized commands
       const response = `I didn't understand "${input}". Try saying "help" to see available commands.`;
       addMessage('assistant', response);
       speak(response);
