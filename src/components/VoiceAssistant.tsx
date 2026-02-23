@@ -15,7 +15,8 @@ import {
   Maximize2,
   BarChart3,
   TrendingUp,
-  PieChart
+  PieChart,
+  Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,6 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { useVoice } from '@/context/VoiceContext';
 import { useData } from '@/context/DataContext';
 import { toast } from '@/hooks/use-toast';
+import { aiService } from '@/lib/aiService';
 
 interface Message {
   id: string;
@@ -48,9 +50,15 @@ export function VoiceAssistant() {
   const [isOpen, setIsOpen] = React.useState(false);
   const [isMinimized, setIsMinimized] = React.useState(false);
   const [isListening, setIsListening] = React.useState(false);
+  const [isProcessing, setIsProcessing] = React.useState(false);
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [inputValue, setInputValue] = React.useState('');
   const [recognition, setRecognition] = React.useState<SpeechRecognition | null>(null);
+
+  // Update AI service context when data changes
+  React.useEffect(() => {
+    aiService.updateContext(dataset, statistics, narrative, charts);
+  }, [dataset, statistics, narrative, charts]);
 
   // Initialize speech recognition with improved settings
   React.useEffect(() => {
@@ -120,82 +128,6 @@ export function VoiceAssistant() {
     }
   }, []);
 
-  // Voice commands configuration with flexible pattern matching
-  const voiceCommands: VoiceCommand[] = React.useMemo(() => [
-    {
-      trigger: [
-        'read', 'tell', 'narrate', 'play', 'story', 'narrative',
-        'read story', 'tell story', 'narrate story', 'play story',
-        'read the story', 'tell me the story', 'read data story',
-        'play the narrative', 'narrate the data'
-      ],
-      action: 'speak_narrative',
-      description: 'Read the complete data story',
-      handler: async () => {
-        if (narrative) {
-          await speak(narrative);
-          addMessage('assistant', 'Reading your data story now.');
-        } else {
-          addMessage('assistant', 'No story available. Please analyze some data first.');
-        }
-      }
-    },
-    {
-      trigger: [
-        'summarize', 'summary', 'overview', 'data', 'about',
-        'summarize data', 'data summary', 'give summary',
-        'tell me about the data', 'what is the data',
-        'describe data', 'explain data', 'data overview',
-        'show me the data', 'tell me about data'
-      ],
-      action: 'summarize',
-      description: 'Provide a data summary',
-      handler: async () => {
-        if (dataset && statistics.length > 0) {
-          const summary = generateDataSummary();
-          await speak(summary);
-          addMessage('assistant', summary);
-        } else {
-          addMessage('assistant', 'No data loaded. Please upload and analyze data first.');
-        }
-      }
-    },
-    {
-      trigger: [
-        'charts', 'chart', 'visualizations', 'graphs', 'show',
-        'show charts', 'display charts', 'what charts',
-        'available charts', 'list charts', 'show me charts',
-        'what visualizations', 'show graphs', 'display graphs'
-      ],
-      action: 'list_charts',
-      description: 'List available charts',
-      handler: () => {
-        if (charts.length > 0) {
-          const chartList = `Available charts: ${charts.map(c => c.type).join(', ')}`;
-          addMessage('assistant', chartList);
-          speak(chartList);
-        } else {
-          addMessage('assistant', 'No charts available. Generate some visualizations first.');
-        }
-      }
-    },
-    {
-      trigger: [
-        'help', 'commands', 'what', 'how', 'can you',
-        'what can you do', 'voice commands', 'available commands',
-        'show commands', 'list commands', 'help me',
-        'what are you', 'what do you do', 'how do i use this'
-      ],
-      action: 'help',
-      description: 'Show available commands',
-      handler: () => {
-        const helpText = `I can help you with: Read the complete data story, Provide a data summary, List available charts, Show available commands. Just speak naturally or type your request.`;
-        addMessage('assistant', helpText);
-        speak(helpText);
-      }
-    }
-  ], [narrative, dataset, statistics, charts, speak]);
-
   const generateDataSummary = () => {
     if (!dataset || !statistics.length) return 'No data available';
     
@@ -220,39 +152,25 @@ export function VoiceAssistant() {
   };
 
   const processCommand = async (input: string) => {
-    const lowerInput = input.toLowerCase().trim();
+    setIsProcessing(true);
     
-    // Find matching command with flexible matching
-    const matchedCommand = voiceCommands.find(cmd => 
-      cmd.trigger.some(trigger => {
-        const triggerWords = trigger.toLowerCase().split(' ');
-        const inputWords = lowerInput.split(' ');
-        
-        // Check if trigger is contained in input
-        if (lowerInput.includes(trigger.toLowerCase())) {
-          return true;
-        }
-        
-        // Check if any trigger word matches any input word
-        return triggerWords.some(triggerWord => 
-          inputWords.some(inputWord => 
-            inputWord.includes(triggerWord) || triggerWord.includes(inputWord)
-          )
-        );
-      })
-    );
-    
-    if (matchedCommand) {
-      try {
-        await matchedCommand.handler();
-      } catch (error) {
-        addMessage('assistant', 'Sorry, I encountered an error processing that command.');
-      }
-    } else {
-      // More helpful response for unrecognized commands
-      const response = `I didn't understand "${input}". Try saying "help" to see available commands.`;
-      addMessage('assistant', response);
-      speak(response);
+    try {
+      // Use AI service to generate intelligent response
+      const aiResponse = await aiService.query(input);
+      
+      // Add AI response to messages
+      addMessage('assistant', aiResponse.answer);
+      
+      // Speak the response
+      await speak(aiResponse.answer);
+      
+    } catch (error) {
+      console.error('Error processing command:', error);
+      const errorMsg = 'Sorry, I encountered an error processing your question. Please try again.';
+      addMessage('assistant', errorMsg);
+      speak(errorMsg);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -323,7 +241,14 @@ export function VoiceAssistant() {
                     <CardTitle className="text-lg">AI Voice Assistant</CardTitle>
                     {voiceState.isPlaying && (
                       <Badge variant="secondary" className="text-xs">
-                        Speaking...
+                        <Volume2 className="w-3 h-3 mr-1" />
+                        Speaking
+                      </Badge>
+                    )}
+                    {isProcessing && (
+                      <Badge variant="secondary" className="text-xs">
+                        <Sparkles className="w-3 h-3 mr-1" />
+                        Thinking
                       </Badge>
                     )}
                   </div>
@@ -354,8 +279,15 @@ export function VoiceAssistant() {
                       {messages.length === 0 && (
                         <div className="text-center text-muted-foreground text-sm py-8">
                           <Bot className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                          <p>Hi! I'm your AI voice assistant.</p>
-                          <p>Ask me about your data or say "help" for commands.</p>
+                          <p className="font-medium mb-1">Hi! I'm your AI Data Assistant</p>
+                          <p className="text-xs">I can analyze your data and answer questions like:</p>
+                          <ul className="text-xs mt-2 space-y-1">
+                            <li>"What's in my dataset?"</li>
+                            <li>"What's the average of [column]?"</li>
+                            <li>"Show me trends"</li>
+                            <li>"Compare [column1] and [column2]"</li>
+                            <li>"What are the key insights?"</li>
+                          </ul>
                         </div>
                       )}
                       
@@ -395,8 +327,12 @@ export function VoiceAssistant() {
                         placeholder="Type your message or use voice..."
                         className="flex-1"
                       />
-                      <Button type="submit" size="sm">
-                        <Send className="w-4 h-4" />
+                      <Button type="submit" size="sm" disabled={isProcessing || !inputValue.trim()}>
+                        {isProcessing ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
                       </Button>
                     </form>
 
@@ -438,28 +374,32 @@ export function VoiceAssistant() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => processCommand('help')}
+                        onClick={() => { setInputValue('What can you tell me about my data?'); }}
                         className="text-xs"
-                      >
-                        Help
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => processCommand('summarize data')}
-                        className="text-xs"
+                        disabled={isProcessing}
                       >
                         <BarChart3 className="w-3 h-3 mr-1" />
-                        Summary
+                        About Data
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => processCommand('read story')}
+                        onClick={() => { setInputValue('What are the key insights?'); }}
                         className="text-xs"
+                        disabled={isProcessing}
                       >
-                        <Volume2 className="w-3 h-3 mr-1" />
-                        Read Story
+                        <Sparkles className="w-3 h-3 mr-1" />
+                        Insights
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => { setInputValue('Show me statistics'); }}
+                        className="text-xs"
+                        disabled={isProcessing}
+                      >
+                        <TrendingUp className="w-3 h-3 mr-1" />
+                        Statistics
                       </Button>
                     </div>
                   </div>
